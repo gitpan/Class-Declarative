@@ -1,0 +1,16 @@
+Changes
+MANIFEST
+Makefile.PL
+README
+TODO
+lib/Class/Declarative.pm
+lib/Class/Declarative/Node.pm
+lib/Class/Declarative/EventContext.pm
+lib/Class/Declarative/Semantics.pm
+lib/Class/Declarative/Semantics/Code.pm
+lib/Class/Declarative/Semantics/POD.pm
+t/00-load.t
+t/manifest.t
+t/pod-coverage.t
+t/pod.t
+META.yml                                 Module meta-data (added by MakeMaker)

@@ -1,0 +1,7 @@
+Things that would be nice to add to the Class::Declarative framework.
+
+- Central error handling, and error handlers.  But mostly, just logging of warnings and such.
+  This is especially important because when an event handler fails after I push a button,
+  I don't want the application to die, I just want it to tell me, and log it.
+  
+  
