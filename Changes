@@ -1,5 +1,8 @@
 Revision history for Class-Declarative
 
-0.01    Date/time
-        First version, released on an unsuspecting world.
+0.01    2010-02-15
+        Got this thing uploaded to CPAN, with unit tests actually checking it first.
 
+0.02    2010-02-16
+        Upon restarting my work with Wx, immediately found egregious errors I had failed to test in the unit tests.
+        Like the source filter didn't work because I changed the start function to be called.  Stupid stuff.

@@ -68,7 +68,7 @@ sub build {
    $self->build_payload;
    
    foreach ($self->elements) {
-      $_->build;
+      $_->build if $_->can('build');
    }
    
    $self->add_to_parent;
@@ -151,7 +151,7 @@ Returns the parent - all nodes do this.  The top node at C<Class::Declarative> r
 
 =cut
 
-sub root {$_[0]->parent}
+sub root {$_[0]->parent->root}
 
 
 =head1 AUTHOR

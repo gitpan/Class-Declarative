@@ -14,11 +14,11 @@ Class::Declarative - Provides a declarative framework for Perl
 
 =head1 VERSION
 
-Version 0.01
+Version 0.02
 
 =cut
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 our $NODE_TYPE = "Class::Declarative::Node";  # Could be smarter here.
 
@@ -127,7 +127,9 @@ sub import
    } else {
       shift @arguments if @arguments;
    }
+   push @arguments, "Class::Declarative::Semantics" unless grep { $_ eq "Class::Declarative::Semantics" } @arguments;
 
+   use lib "./lib"; # This allows us to test semantic modules without disturbing their production variants that are installed.
    foreach (@arguments) {   
       eval "use $_ qw(" . __PACKAGE__ . ");";
       if ($@) {
@@ -292,7 +294,7 @@ sub filter
          $_ = "my \$root = " . __PACKAGE__ . "->new();\n\$root->load(<<'DeclarativeEOF');\n$_";
       }
    } elsif (!$$self{start}) { # Called on EOF if we ever saw any code.
-      $_ = "\nDeclarativeEOF\n\n\$root->go();\n\n";
+      $_ = "\nDeclarativeEOF\n\n\$root->start();\n\n";
       $$self{start} = 1;    # Otherwise we'll repeat the EOF forever.
       $status = 1;
    }
@@ -332,6 +334,14 @@ sub new {
    $self->event_context_init;
    return $self;
 }
+
+=head2 semantic_handler ($tag)
+
+Returns the instance of a semantic module, such as 'core' or 'wx'.
+
+=cut
+
+sub semantic_handler { $_[0]->{semantics}->{$_[1]} }
 
 =head2 load
 

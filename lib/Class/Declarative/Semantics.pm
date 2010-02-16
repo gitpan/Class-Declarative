@@ -41,20 +41,26 @@ sub new {
 }
 sub tag { 'core' }
 
-=head2 import
+=head2 import, scan_plugins
 
 The C<import> function is called when the package is imported.  It checks for submodules (i.e. plugins) and calls their "defines" methods
-to ask them what tag they claim to implement.  Then it gives that back to C<Class::Declarative>.
+to ask them what tag they claim to implement.  Then it gives that back to C<Class::Declarative>.  Most of the work is done in C<scan_plugins>,
+because C<import> I<has> to execute in any subclass module so we can scan the right directory for plugins.
 
 =cut
 
 sub import
 {
    my($type, $caller) = @_;
+   $type->scan_plugins ($caller, __FILE__);
+}
    
-   my $directory = File::Spec->rel2abs(__FILE__);
+sub scan_plugins {
+   my ($type, $caller, $file) = @_;  
+
+   my $directory = File::Spec->rel2abs($file);
    $directory =~ s/\.pm$//;
-   opendir D, $directory;
+   opendir D, $directory or warn $!;
    foreach my $d (grep /\.pm$/, readdir D) {
       $d =~ s/\.pm$//;
 	  my $mod = $type . "::" . $d;
