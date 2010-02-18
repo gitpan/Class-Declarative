@@ -44,6 +44,7 @@ sub new {
    $self->{payload} = undef;
    $self->{sub} = sub {};   # Null action.
    $self->{callable} = 0;   # Default is not callable.
+   $self->{owncode} = 0;    # Default doesn't have own callable code.
    return $self;
 }
 
@@ -101,8 +102,12 @@ sub go {
    my $self = shift;
 
    return unless $self->{callable};
-   foreach ($self->elements) {
-      $_->go (@_);
+   if ($self->{owncode} && $self->{sub}) {
+      &{$self->{sub}}(@_);
+   } else {
+      foreach ($self->elements) {
+         $_->go (@_);
+      }
    }
 }
 

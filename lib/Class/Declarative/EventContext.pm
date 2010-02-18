@@ -1,7 +1,26 @@
+package hashtie;
+use warnings;
+use strict;
+require Tie::Hash;
+our @ISA = qw(Tie::ExtraHash);
+
+sub STORE {
+   my ($this, $key, $value) = @_;
+   if ($this->[1]{$key}) { return &{$this->[1]{$key}}($this->[0], $key, $value); }
+   $this->[0]{$key} = $value;
+}
+
+sub FETCH {
+   my ($this, $key, $value) = @_;
+   if ($this->[1]{$key}) { return &{$this->[1]{$key}}($this->[0], $key); }
+   $this->[0]{$key};
+}
+
 package Class::Declarative::EventContext;
 
 use warnings;
 use strict;
+use Class::Declarative::Semantics::Code;
 
 
 =head1 NAME
@@ -29,21 +48,40 @@ Called during object creation to set up fields and such.
 
 sub event_context_init {
    my $self = shift;
-   $self->{v} = {};
+   
+   my %values = ();
+   my %handlers = ();
+   tie %values, 'hashtie', \%handlers;
+   $self->{v} = \%values;
+   $self->{h} = \%handlers;
    $self->{e} = {};
 }
 
-=head2 value($var)
+=head2 value($var), setvalue($var, $value)
 
-Returns the global application value named.
+Accesses the global application value named.
 
 =cut
 
 sub value { $_[0]->{v}->{$_[1]} }
+sub setvalue { $_[0]->{v}->{$_[1]} = $_[2]; }
+
+=head2 register_varhandler ($event, $handler)
+
+Registers a variable handler in the event context.  If there is a handler registered for a name, it will be called instead of the normal
+hash read and write.  This means you can attach active content to a variable, then treat it just like any other variable in your code.
+
+=cut
+
+sub register_varhandler {
+   my ($self, $key, $handler) = @_;
+   $self->{h}->{$key} = $handler;
+}
+
 
 =head2 event_context()
 
-Returns $self, the event context of last resort.
+Returns $self.
 
 =cut
 
@@ -61,12 +99,45 @@ sub register_event {
    $self->{e}->{$event} = $closure;
 }
 
+=head2 make_event
+
+Given the name of a C<Class::Declarative> event, finds the code referred to in its callable closure.
+
+=cut
+
+sub make_event {
+   my ($self, $item) = @_;
+   
+   # Does the item have a body or children?  Then use Class::Declarative::Semantics::Code to build code for it.
+   # Note: the flag $is_event registers the item as a named event, if it has a name.
+   Class::Declarative::Semantics::Code::build ($item, 1);
+   return $item->{sub} if $item->{callable};
+
+   # Does the item have an appropriately named 'on' handler?  Then build that and use it.
+   # Search up the tree to inherit parents' 'on' handlers.
+   for (my $cursor = $item; $cursor; $cursor = $cursor->parent()) {
+      foreach ($cursor->elements) {
+         if ($_->is('on') and $_->get('name') eq $item->get('name') and $item->can('build') and my $handler = $_->build) {
+            my $closure = $handler->closure();
+            $self->register_event($_->get('name'), $closure);
+            return $closure;
+         }
+      }
+   }
+   
+   # If all else fails, build a stub.
+   my $closure = sub { print "event " . $item->get('name') . "\n"; };
+   $self->register_event($_->get('name'), $closure);
+   return $closure;
+}
+
 sub fire {
    my ($self, $event) = @_;
    
    my $e = $self->{e}->{$event};
    &$e if $e;
 }
+
 
 
 =head1 AUTHOR

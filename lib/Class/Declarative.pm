@@ -14,11 +14,11 @@ Class::Declarative - Provides a declarative framework for Perl
 
 =head1 VERSION
 
-Version 0.02
+Version 0.03
 
 =cut
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 our $NODE_TYPE = "Class::Declarative::Node";  # Could be smarter here.
 
