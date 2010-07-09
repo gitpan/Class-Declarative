@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Class-Declarative
-version:            0.03
+version:            0.04
 abstract:           Provides a declarative framework for Perl
 author:
     - Michael Roberts <michael@vivtek.com>
@@ -9,10 +9,9 @@ distribution_type:  module
 configure_requires:
     ExtUtils::MakeMaker:  0
 requires:
-    Parse::Indented:      0
-    Parse::RecDescent::Simple:  0
-    Test::More:           0
-    XML::xmlapi:          0
+    Iterator::Simple:  0
+    Test::More:        0
+    Text::ParseWords:  0
 no_index:
     directory:
         - t

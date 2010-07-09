@@ -9,3 +9,7 @@ Revision history for Class-Declarative
 
 0.03    2010-02-17
         Added magic variables, did more little fixes.
+        
+0.04    2010-07-02
+        Wrote a new parsing engine back in April.  Got things working on a fresh install of Strawberry (moved to
+        a development laptop while traveling).

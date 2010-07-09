@@ -11,11 +11,11 @@ Class::Declarative::Semantics::POD - implements POD documentation in a declarati
 
 =head1 VERSION
 
-Version 0.01
+Version 0.02
 
 =cut
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 
 =head1 SYNOPSIS
@@ -43,16 +43,9 @@ The asterisk means indented lines will all be put into the body of this tag even
 
 =cut
 
-sub defines { ('pod*'); }
+sub defines { ('pod'); }
+our %build_handlers = ( pod => { node => sub { Class::Declarative::Semantics::POD->new (@_) }, body => 'none' } );
 
-=head2 build
-
-The C<build> function is then called when this object's payload is built (i.e. in the stage when we're adding semantics to our
-parsed syntax).  In this case, it does nothing.
-
-=cut
-
-sub build { }  # We don't do anything to build
 
 =head2 extract
 
@@ -65,11 +58,11 @@ sub extract {
    my $self = shift;
    my $ret = '';
    
-   if ($self->get('name')) {
-      $ret .= "=" . $self->get('name') . " " . $self->get('label') . "\n\n";
+   if ($self->name) {
+      $ret .= "=" . $self->name . " " . $self->label . "\n\n";
    }
    $ret .= $self->body;
-   $ret .= "=cut\n";
+   $ret .= "\n=cut\n";
    return $ret;
 }
 

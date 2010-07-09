@@ -3,7 +3,7 @@ package Class::Declarative::Semantics;
 use warnings;
 use strict;
 
-#use base qw(XML::xmlapi);  # Our structure is based on XML::xmlapi, with some useful embellishments.
+use Data::Dumper;
 
 =head1 NAME
 
@@ -71,8 +71,14 @@ sub scan_plugins {
 	  warn $@ if $@;
 	  unless ($@) {
    	     foreach (@list) {
-		    eval ' $caller->build_handler ($_, sub { ' . $mod . '->new(@_); }); ';  # Did you get that?
-			warn $@ if $@;
+            my $bh = eval '$' . $mod . '::build_handlers{$_}';
+            if ($bh) {
+               eval ' $caller->class_build_handler ($_, $bh); ';
+               warn "$caller for $mod: $@" if $@;
+            } else {
+               eval ' $caller->class_build_handler ($_, { node => sub { ' . $mod . '->new(@_); }}); ';  # Did you get that?
+               warn "$caller for $mod: $@" if $@;
+            }
 		 }
       }
    }
@@ -89,11 +95,24 @@ application in turn.
 sub start {
    my ($self) = @_;
    
-   foreach ($self->{root}->elements) {
+   foreach ($self->{root}->nodes) {
       next unless $_->{callable};
       next if $_->{event};
       $_->go;
    }
+}
+
+=head2 do()
+
+Each semantic module can accept events/commands issued to its name.  They are sent to the C<do> method here, already parsed.
+
+=cut
+
+sub do {
+   my $self = shift;
+   my $command = shift;
+ 
+   # The core module doesn't implement anything.  
 }
 
 

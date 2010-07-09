@@ -1,0 +1,243 @@
+=head1 Class::Declarative - the tutorial
+
+C<Class::Declarative> is a declarative framework for writing Perl data structures.  Those data structures may or may not include active Perl code.
+They normally do - a GUI without any code to run when you click buttons is boring - but some don't, like the specification for a PDF, which may simply
+describe how to set up a L<PDF::API2> object.  There may be an I<implicit> action inherent in a data structure - like writing the PDF out to a file, or
+activating the GUI, or executing an SQL query - but explicit actions are usually required to create interesting applications.
+
+This file is an overview of the C<Class::Declarative> framework and will link to more detailed information as it is written.
+
+=head1 PARSING, SOURCE FILTERS, AND INDENTED STRUCTURE
+
+A C<Class::Declarative> specification is a tree structure of named nodes, each of which can have options and parameters, a textual label, a long text body,
+and children.  Children are denoted by being indented under the parent node, like Python.  The text body is (usually) enclosed in curly brackets, but a
+tag can be marked as wanting all its child lines as part of its body, if that makes things clearer in presentation.
+
+This means that a C<Class::Declarative> specification looks very different from a Perl program at first glance; it looks more like Python.  Sorry.
+It really is still Perl under the hood, though.  There are just a lot fewer keystrokes in it, that's all.
+
+Here's a simple example:
+
+By default, C<Class::Declarative> runs as a source filter, meaning that it can munge a Perl source file before Perl ever sees it.  That means that the example
+above is I<already a valid Perl program>, as soon as you add the C<use>:
+
+A C<Class::Declarative> specification goes through three phases on the way to execution.  First, it's parsed into a tree structure in memory.  Next, the
+semantics of that structure are figured out, during the build phase.  Finally, it's "started", which means different things depending on which semantic
+module is declared to be primary.  For a GUI, "starting" means starting and displaying the GUI.  For the core module, it just means executing all the callable
+top-level items in sequence.
+
+=head1 SEMANTIC MODULES
+
+A domain of application for C<Class::Declarative> is called a semantic module, and C<Class::Declarative> includes one, the "core" module.  A semantic module
+is a set of plugins, each of which claims one or more tags and knows how to manage the semantics of that tag.  The module implementing a tag has some
+influence over how it's parsed (it can claim all its child lines, or say it knows how to parse its own line differently from the standard), but generally
+the standard parser is used all the way down the tree, and the semantics are only consulted during the build step.  Of course, whatever they build then
+takes control after the application is started.
+
+Tags can be defined multiple times in separate semantic domains (a 'page' means one thing in a PDF, and another in a Web site), and C<Class::Declarative>
+will assign the right one based on the ancestry (i.e. parent, grandparent, etc.) of the node in question.  So if your Web site uses PDFs, things will still
+work out right.
+
+The list of modules can be expected to grow, but these are the ones currently in progress (those marked with an asterisk are planned or at least contemplated):
+
+* Core: this is the set that comes with C<Class::Declarative>, including code generation, template expression, data manipulation, events, the command line, etc.
+* Wx: this is a wrapper for wxPerl (L<Wx>), allowing you to build GUIs.  Fast.  This module was the original motivation for the framework.
+* PDF: a wrapper for L<PDF::API2> allowing you to write PDFs in a declarative manner.  Later, perhaps allowing the consumption of PDFs as data.
+* *WWW: a set of semantics allowing the publication or consumption of information on the Web.
+* *Workflow: a set of semantics for the organization of tasks and procedures involving humans.  No actual humans required; we can use the same semantics for agents in general.
+* *Document: a set of semantics allowing the definition of program code or other deliverables in a declarative manner.  Might include MIME and email.
+* *Chat: semantics for natural-language dialog with one or more interlocutors, i.e. chatbots or other textual interaction.
+* *Logic: wrapper for L<AI::Prolog>.  Actually, you could write wrappers for juicy CPAN modules all day long.  But logic and rulesets are important.
+
+Writing your own semantic module is pretty easy; watch this space for a separate tutorial.
+
+The rest of this document is essentially an overview of what the core semantics provides.  Each heading here will eventually link to a separate
+chapter of the tutorial, but right at the moment, I'm still thinking up new things that should be in the library faster than I can implement them or
+write about them.  I *think* I'll be slowing down at some point.  I hope.
+
+=head1 CODE AND CODE GENERATION
+
+Within a C<Class::Declarative> structure, it's easy to put Perl code anywhere that it's needed, either as the action taken by a given object, or the
+code to run to build it (depending on the object).  There is some code generation involved as well, allowing you to abbreviate your Perl to interface with
+the facilities of C<Class::Declarative> without a lot of cruft in the way.  The most prominent of those is how you can access iterators (see below); given
+tabular data - the result of an SQL query, or just an embedded table in your data - you can access it as easily as this:
+
+   ^foreach field1, field2 in my_data {
+      print "$field1 - $field2\n";
+   }
+   
+If you're using SQL outright, you can get even more terse:
+
+   ^select city, count(*) as ct from city_table group by city order by ct desc {
+      print "$city appears $ct times\n";
+   }
+   
+Terser yet would be defining your SQL statements elsewhere, then in your code simplying saying:
+
+   ^select city_count_query {   # or ^foreach city, ct in city_count_query - it's equivalent
+      print "$city appears $ct times\n";
+   }
+
+Here, C<field1> and C<field2>, or C<city> and C<ct> in the second and third examples, have been declared as local variables and the accessor methods
+for my_data and the DBI statement have been interpolated behind the scenes, leaving
+just a higher-level semantic structure in place for you to worry about.  If you don't like it, of course, nobody's forcing you to use it; just go ahead
+and write your own access code if you want.
+
+Semantic sugar is always introduced with a C<^> sigil.  (Mnemonic: higher-level.)
+
+If you want to get down and dirty with code generation, you can always write macros to generate code on the fly as you see fit (see below).
+
+=head1 EVENTS
+
+Something that comes up often in GUI applications and other event-oriented applications (like IRC chat or something) is how events are handled.
+In C<Class::Declarative>, you can defined named events that can be invoked from anywhere in the application, either by assigning them to GUI elements,
+for example, or by explicit invocation as a textual command, e.g. C<^do ("demo 'wxSomething.pm');>.
+
+Events also make sense in the context of something like a workflow system.
+
+=head1 VALUES, BOTH MUNDANE AND MAGIC
+
+Any Perl value can be stored by name at any level in your tree, and accessed in code as C<^variable>.  You can attach code to be called when a named value
+is written or read, making it a magic variable.  This is used in L<Wx::Declarative>, for example, to bind variables to input fields, allowing you to read and
+write to and from the screen without worrying about the functions called to do so.  (Are you seeing a pattern here?  Anywhere you have to write code that's
+boring or repetitive, C<Class::Declarative> is intended to provide a way for you not to do so, without getting in your way.)
+
+=head1 HOMOICONICITY
+
+Any C<Class::Declarative> structure can describe itself by returning a parseable string.  There are other facilities described below that permit powerful
+manipulation of nodal structure, but self-description is the key to homoiconicity.
+
+=head1 MACRO INSERTION
+
+Nodes can be inserted into the application that don't appear in its self-description, as "macro insertions".  These are considered to be defined by other
+tags already appearing in the program.  There are facilities to do this in a simple manner below, using the template engine.
+
+=head1 DATA STRUCTURES
+
+In addition to the usual Perl data structure, C<Class::Declarative> works with some additional types of data:
+text, streams, tabular data, and nodal data.  These are all implemented as particular types of iterator, using L<Iterator::Simple>.
+
+=head1 STREAMS
+
+A I<stream> is a lazily evaluated list of data.  The individual items can be strings or other scalars, arrayrefs (which is what a tokenizer returns),
+hashrefs (which is what tabular data accessors return), or "other".
+
+=head2 TEXT
+
+A stream of strings is I<text>.  The body of any tag is text, as is its self-description.  Files contain text.  In general, text consists of
+anything that can be cast into an iterable sequence of scalars.  That means that for C<Class::Declarative>, a Perl list is also text.
+
+=head2 TABULAR DATA
+
+Tabular data, or just "data" for short (because that's the tag that organizes it), is anything that can be arranged into rows and columns.  It's essentially
+SQL data, but C<Class::Declarative> provides some simple ways of working with it that are lighter-weight than full SQL - while still providing an easy
+interface to SQL if you have the DBI module installed.
+
+=head2 NODAL DATA
+
+This is probably a stupid name, but it's what I've been calling the hierarchical tree data that defines C<Class::Declarative> itself.  In other words, the
+stuff of a C::D program is itself a first-class data structure in C::D.
+
+=head2 LOOKUP
+
+Both tabular and nodal data support the concept of I<lookup>, where a key returns a value of some sort.  That can be implemented in various ways.
+Hand-wavy!
+
+=head2 CONVERSIONS BETWEEN DATA STRUCTURES
+
+So given all those types of data, how can we manipulate them and convert between them?  Well, to start with, they're all iterable; an iterator on a text
+object returns its lines in succession, an iterator on tabular data obvious returns each row in succession, and an iterator on nodal data walks the tree in
+a depth-first manner, or can be the result of a search for nodes meeting given criteria.
+
+Conversions of tabular or nodal data to text can be done using the template engine (which also underlies the macro system).  Text can be converted into
+tabular or nodal data by parsing it.  Tabular data can be converted into nodal data by aggregating it (effectively running a "group by" query on it), and
+nodal data can be converted into tabular data by running a search query on it.
+
+=head1 DATAFLOW
+
+More later.
+
+=head1 MAPS
+
+A map links one data structure with another in such a way that (at least some) changes to one data structure will make corresponding changes to the other,
+and vice versa.  This more or less extends the concept of magic variables to the other data structures C<C::D> works with.  It's all still very hand-wavy,
+but the idea is that you can declare these semantic relationships, then manipulate one end of the map
+(perhaps by means of a GUI exposing it) while trusting the other end to be updated as needed.
+
+Very hand-wavy.  An initial version of this notion links a Wx tree control to an underlying data structure.
+
+=head1 TEMPLATES AND MACROS
+
+C<Class::Declarative> has a template language built into it, the same one defined independently as L<JSON::Template>.
+
+Since templates can easily express data in a form easily parseable by C<Class::Declarative>, the template language is simultaneously the macro language.
+
+Named templates/macros define new tags that can be used anywhere in the tree.
+
+Templates can be stored in modules in the normal Perl module library in order to define macro libraries for use in ... I<anything>.  I'm particularly
+looking forward to a robust set of code generation macros.
+
+=head1 FILTERS
+
+The template language defines filters that can modify values as they're being retrieved; a filter can also be set up to change one iterator into another
+by means of repeated calls.  A parsing filter can turn text into tabular data, and a template can be used as a filter to turn tabular data into text -
+each of these modes works on one iterated row at a time, so it's lazily evaluated and consumes only those resources that must be consumed.
+
+Filters can also transform streams in other ways, by returning only selected rows or multiplying rows, or by sorting them.  Of course, sorting may be
+space-intensive; you're on your own in that case.
+
+An SQL select statement can be seen as a specific form of filter.
+
+=head1 PREDICATES
+
+The template language also defines predicates that can be called to test various conditions during expression of a data structure; in a more general sense,
+a predicate takes any data structure and returns a scalar.  When used as a predicate proper, that scalar is assumed to have binary meaning, but
+this allows me to generalize the class of functions that return scalars.  Besides, in Perl any scalar I<does> have binary meaning.
+
+But something like a counter is also considered a predicate in this sense.
+
+=head1 PARSERS
+
+A parser, as noted earlier, is a way to convert text into some other form of data - whether tabular, tree, graph, or arbitrary Perl.  I'm not 100% sure
+parsers belong in the core semantics, but since L<Parse::RecDescent> is already one of the dependencies of C<Class::Declarative>, it might be just as
+easy to provide a nicer wrapper for it in case you want to use it yourself.  This part is so hand-wavy there's more wave than hand; I'm really just
+trying to map out the boundary where I intend to stop.
+
+=head1 SQL
+
+SQL knowledge is built into the core semantics, because SQL provides a nice way to express joins and selection.  It's done using DBI, and if your system
+doesn't have DBI installed, you can't use SQL (but you can still work with tabular data using Perl).
+
+A lot of the innards of an application are also exposed using SQL, so you can write SQL against your data and the program itself if you're comfortable
+with that.
+
+Finally, you can define data in a higher-level manner and have SQL generated to deal with it, or define your tables in a declarative manner and allow
+the application to configure the database to match.  This is useful when declaring Web sites and generating them to run independent of C<Class::Declarative>.
+(Not that that application is anything but hand waving right now, so my use of present tense is somewhat misleading.)
+
+=head1 INPUT AND OUTPUT; SYSTEM INTERFACE
+
+Of course, any file can be opened as a text object, either incoming or outgoing, but there are some privileged forms of input and output as well.
+
+First is the command line; a command-line structure can be defined to parse it and get it into your application as queryable data or values.  Second is
+the stdout and stdin handles (and stderr) that represent streams.  "System output" is a central text output that can be used from anywhere; by default,
+it is written to stdout, but one or more additional output handlers and output filters may also be defined.
+
+Warnings can also be intercepted.
+
+All that is hand-wavy.
+
+=head1 ERROR HANDLING
+
+Error logging, how the parser handles errors.  Allowing a GUI to load even if there are syntax errors in some of its event handlers, etc.  Hand-wavy!
+
+=head1 DATA FLOW
+
+If you I<really> want to get declarative, of course, you won't even define event handlers; you'll just define a dataflow graph that implements your
+entire application, then allow it to run.  Hand-wavy!
+
+You can register a dataflow graph as the interceptor of system output, by the way.
+
+=head1 SUBCLASSING OBJECTS
+
+You can create an object in a declarative manner as well, and even subclass objects as needed.  Hand-wavy!

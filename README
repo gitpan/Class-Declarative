@@ -1,16 +1,17 @@
 Class-Declarative
 
-The README is used to introduce the module and provide instructions on
-how to install the module, any machine dependencies it may have (for
-example C compilers and installed libraries) and any other information
-that should be provided before the module is installed.
+Class::Declarative is a framework for Perl allowing complex data structures
+and some program logical structure to be declared instead of being built
+in an initialization phase.
 
-A README file is required for CPAN modules since CPAN extracts the README
-file from a module distribution so that people browsing the archive
-can use it to get an idea of the module's uses. It is usually a good idea
-to provide version information here so that people can decide whether
-fixes for the module are worth downloading.
+To make that possible, it also exposes a bunch of other convenient features
+that make a variety of programming tasks much simpler and easier to understand.
 
+For a lot more information, see the tutorial:
+
+    perldoc Class::Declarative::Tutorial
+    
+Note that this is very much a work in progress.
 
 INSTALLATION
 
@@ -27,6 +28,10 @@ After installing, you can find documentation for this module with the
 perldoc command.
 
     perldoc Class::Declarative
+    
+More tutorial information can be found in the tutorial:
+
+    perldoc Class::Declarative::Tutorial
 
 You can also look for information at:
 

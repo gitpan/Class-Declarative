@@ -21,7 +21,8 @@ package Class::Declarative::EventContext;
 use warnings;
 use strict;
 use Class::Declarative::Semantics::Code;
-
+use Text::ParseWords;
+use Data::Dumper;
 
 =head1 NAME
 
@@ -87,9 +88,11 @@ Returns $self.
 
 sub event_context { $_[0] }
 
-=head2 register_event($event, $closure), fire ($event)
+=head2 register_event($event, $closure), do ($event)
 
 Registers and fires closures by name.  This is the mechanism used by the 'on' tag in the core semantics.
+This is actually a command-line interface; C<fire> runs the L<Text::ParseWords> C<parse_line> function on its
+input, and gives the event closure any list elements that come after the first word.
 
 =cut
 
@@ -98,10 +101,29 @@ sub register_event {
 
    $self->{e}->{$event} = $closure;
 }
+sub do {
+   my ($self, $command) = @_;
+   
+   my @words = parse_line ('\s+', 0, $command);
+   my $event = shift @words;
+   
+   my $e = $self->{e}->{$event};
+   if ($e) {
+      my $r = eval { &$e(@words) };
+      print STDERR $@ if $@;   # TODO: centralized error handling.
+      return $r;
+   }
+   if ($self->parent) {
+      my $cx = $self->parent->event_context();
+      return ($cx->do($command));
+   }
+}
 
 =head2 make_event
 
 Given the name of a C<Class::Declarative> event, finds the code referred to in its callable closure.
+
+TODO: this is not covered by unit testing!
 
 =cut
 
@@ -110,33 +132,27 @@ sub make_event {
    
    # Does the item have a body or children?  Then use Class::Declarative::Semantics::Code to build code for it.
    # Note: the flag $is_event registers the item as a named event, if it has a name.
-   Class::Declarative::Semantics::Code::build ($item, 1);
+   Class::Declarative::Semantics::Code::build_payload ($item, 1);
    return $item->{sub} if $item->{callable};
 
    # Does the item have an appropriately named 'on' handler?  Then build that and use it.
    # Search up the tree to inherit parents' 'on' handlers.
    for (my $cursor = $item; $cursor; $cursor = $cursor->parent()) {
-      foreach ($cursor->elements) {
-         if ($_->is('on') and $_->get('name') eq $item->get('name') and $item->can('build') and my $handler = $_->build) {
-            my $closure = $handler->closure();
-            $self->register_event($_->get('name'), $closure);
-            return $closure;
+      foreach ($cursor->nodes) {
+         $_->build if $_->is('on');
+         if ($_->is('on') and ($_->name eq $item->name) and $_->can('build') and my $handler = $_->build) {
+            $self->register_event($item->name, $handler);
+            return $handler;
          }
       }
    }
    
    # If all else fails, build a stub.
-   my $closure = sub { print "event " . $item->get('name') . "\n"; };
-   $self->register_event($_->get('name'), $closure);
+   my $closure = sub { print "event " . $item->name . "\n"; };
+   $self->register_event($item->name, $closure);
    return $closure;
 }
 
-sub fire {
-   my ($self, $event) = @_;
-   
-   my $e = $self->{e}->{$event};
-   &$e if $e;
-}
 
 
 
@@ -146,8 +162,8 @@ Michael Roberts, C<< <michael at vivtek.com> >>
 
 =head1 BUGS
 
-Please report any bugs or feature requests to C<bug-wx-definedui at rt.cpan.org>, or through
-the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Wx-DefinedUI>.  I will be notified, and then you'll
+Please report any bugs or feature requests to C<bug-class-declarative at rt.cpan.org>, or through
+the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Class-Declarative>.  I will be notified, and then you'll
 automatically be notified of progress on your bug as I make changes.
 
 =head1 LICENSE AND COPYRIGHT
