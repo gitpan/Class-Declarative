@@ -8,11 +8,13 @@ lib/Class/Declarative/Node.pm
 lib/Class/Declarative/EventContext.pm
 lib/Class/Declarative/Semantics.pm
 lib/Class/Declarative/Tutorial.pod
+lib/Class/Declarative/Util.pm
 lib/Class/Declarative/Semantics/Code.pm
 lib/Class/Declarative/Semantics/Data.pm
 lib/Class/Declarative/Semantics/POD.pm
 lib/Class/Declarative/Semantics/Value.pm
 t/00-load.t
+t/01a - nodes.t
 t/01-parse.t
 t/02-run.t
 t/03-events.t
