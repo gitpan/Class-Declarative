@@ -17,11 +17,11 @@ Class::Declarative - Provides a declarative framework for Perl
 
 =head1 VERSION
 
-Version 0.05
+Version 0.06
 
 =cut
 
-our $VERSION = '0.05';
+our $VERSION = '0.06';
 
 $SIG{__WARN__} = sub {
    return if $_[0] =~ /Deep recursion.*Parser/;  # TODO: Jezus, Maria es minden szentek.
@@ -113,7 +113,7 @@ runs, "$self" won't point to the button, it'll point to the frame or dialog the 
 
 =head1 TUTORIAL
 
-For more information about how to use C<Class::Declarative>, you'll probably want to see L<Class::Declarative::Tutorial> instead of this file;
+For more information about how to use C<Class::Declarative>, you'll probably want to see L<../Declarative/Tutorial.pod> instead of this file;
 the rest of this presentation is devoted to the internal workings of C<Class::Declarative>.  (Old literate programming habits, I guess.)
 
 =head1 SETTING UP THE CLASS STRUCTURE
