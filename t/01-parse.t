@@ -1,6 +1,6 @@
 #!perl -T
 
-use Test::More tests => 175;
+use Test::More tests => 178;
 use Data::Dumper;
 
 use Class::Declarative qw(-nofilter Class::Declarative::Semantics);
@@ -429,6 +429,7 @@ EOF
 #diag Dumper($result);
 #die;
 
+
 # --------------------------------------------------------------------------------------
 # OK, let's just do a basic parser test with something that *won't* activate any of
 # our semantic classes, and make sure the basic node parser works.
@@ -437,7 +438,7 @@ $tree = Class::Declarative->new(<<EOF);
 
 # Here is a comment.
 
-test1 name (id=OK, something) [1, 2, 4, 3] "Label" {
+test1 name (id=OK, something, value="quoted spaces", cols="2.64in 1.13in 1.28in 0.91in") [1, 2, 4, 3] "Label" {
    body text
    second line
 }
@@ -459,6 +460,8 @@ isa_ok ($test, 'Class::Declarative::Node');
 is ($test->name, 'name');
 is ($test->parameter('id'), 'OK');
 ok ($test->parameter('something'));
+is ($test->parameter('value'), 'quoted spaces');  # 2010-11-18 - forgot spaces?
+is ($test->parameter('cols'),  '2.64in 1.13in 1.28in 0.91in'); # 2010-11-18 - ...
 @options = $test->optionlist;
 is_deeply (\@options, ['1', '2', '4', '3']);
 is ($test->option_n(3), 4);
@@ -524,6 +527,23 @@ $on = $tree->first('on');
 is ($on->body, '');
 
 
+# Another error case.
+
+$tree = Class::Declarative->new (<<EOF);
+
+dialog (x=50, y=50, xsize=500, ysize=400) "Wx::Declarative tutorial"
+   field script (size=100, x=20, y=20) "run me"
+   button run (x=130, y=20) "Run" {
+     
+      ^messagebox ($^script);
+   }
+   
+EOF
+$button = $tree->first('button');
+$m = $button->first('^messagebox'); # Don't laugh - this was an error due to the indentation of the blank line.
+is ($m, undef);
+# $d = $button->describe;
+# TODO: like ($button->describe, qr/\$\^/); -- there's something funky in the parser itself, I think.
 
 
 

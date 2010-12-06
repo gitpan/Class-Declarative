@@ -154,6 +154,20 @@ sub make_event {
 }
 
 
+=head2 semantics()
+
+Each event context can return a semantic handler.  For example, a form knows that its core semantics are "wx"; a Word document knows that
+its core semantics are "ms-word", and so on.  The semantic handlers are a good place to put common functionality for a given semantic
+domain, so they're useful in code snippets in a given context.
+
+The default is to return the core semantics.
+
+=cut
+
+sub semantics {
+   my $self = shift;
+   $self->root()->semantic_handler('core');
+}
 
 
 =head1 AUTHOR

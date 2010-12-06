@@ -17,11 +17,11 @@ Class::Declarative - Provides a declarative framework for Perl
 
 =head1 VERSION
 
-Version 0.06
+Version 0.07
 
 =cut
 
-our $VERSION = '0.06';
+our $VERSION = '0.07';
 
 $SIG{__WARN__} = sub {
    return if $_[0] =~ /Deep recursion.*Parser/;  # TODO: Jezus, Maria es minden szentek.
@@ -32,93 +32,65 @@ $SIG{__WARN__} = sub {
 
 =head1 SYNOPSIS
 
-Perl's dominant paradigm, like most languages, is imperative.  That is, when told to run a program, the computer does first one thing, then the next,
-until it terminates.  Where this paradigm breaks down is when we are better off conceiving of our task not as programming a single agent (the computer)
-but a collection of objects, say, a GUI.  In a GUI program, we talk about events that fire based on user actions.  The events themselves lend themselves
-well to modeling by imperative code, but the I<overall organization> of the program as a whole is much easier when we look at the system as a set of 
-data structures.
+This module is a framework for writing Perl code in a declarative manner.  What that means right now is that instead of seeing a script as a
+series of actions to be carried out, you can view the script as a set of objects to be instantiated, then invoked.  The syntax for building
+these objects is intended to be concise and flexible, mostly staying out of your way.  Perl code is used to declare actions to be taken once
+the structure is built, as well as any actions to be taken interactively as the script runs.
 
-Traditionally, when writing a GUI based on, say, L<Wx>, these data structures have been built in an imperative initialization function.
+The original motivation for designing this framework was to provide a more rational way of defining a L<Wx> user interface.  As it is, the
+data structures making up a Wx GUI are built with painstakingly detailed (and boring) imperative code.  There are XML-based GUI specification
+frameworks, but I wanted to write my own that wasn't XML-based because I hate typing XML even more than I hate writing setup code.
 
-That approach sucks.
+Back when I did a lot of GUI work, I'd usually write some pseudocode to describe parts of the UI, then translate it into code by hand.
+So this year, while noodling around about some tools I'd find useful in my translation business, I thought, well,
+why not just write a class to interpret that pseudocode description directly?
 
-Instead, I find it a lot easier to write a full description of the GUI, then hang code on it.  So at some point, I thought, well, why not just write
-a class to interpret that pseudocode description directly?
+Once I started getting into that in earnest, I realized that the Wx-specific functionality could be spun out into an application-specific
+(in my new parlance, a "semantic") domain, leaving a core set of functionality that was a general declarative framework.  I then realized that
+the same framework could easily be used to work with domains other than Wx GUIs, such as building PDFs, building Flash applications, doing
+things with Word documents... All kinds of things.  All of those things are currently in pieces on the workbench - except for the Word
+module, which is ready, if not for prime time, then at least for deep cable midnight airing.
 
-That is this module.
+Here's a GUI example using something like the Wx domain. This is a pretty simple example, but it gives you a taste of what I'm talking about.
+Since Class::Declarative runs as a source filter, the example below is a working Perl script that replaces roughly 80 lines of the Wx
+example code it was adapted from.  And yes, it runs in my test suite right now.
 
-C<Class::Declarative> provides the framework for building a complete Perl program based on a simple, indented, rather informal language.  The language has
-no keywords at all; you have to provide a set of objects to define the semantics of I<everything>.  (Caveat: C<Class::Declarative> knows how to build code,
-so there are some things it will interpret on its own.  We'll use those to write the test suites.)
+   use Wx::Declarative;
+   
+   dialog (xsize=250, ysize=110) "Wx::Declarative dialog sample"
+      field celsius (size=100, x=20, y=20) "0"
+      button celsius (x=130, y=20) "Celsius" { $^fahrenheit = ($^celsius / 100.0) * 180 + 32; }
+      field fahrenheit (size=100, x=20, y=50) "32"
+      button fahrenheit (x=130, y=50) "Fahrenheit" { $^celsius = (($^fahrenheit - 32) / 180.0) * 100; }
+
+The main things to look at are as follows: first, yes - syntactically significant indentation.  I know it's suspiciously Pythonic, I know all
+the arguments citing the danger of getting things to line up, and I don't care; this is the way I have always written my pseudocode, and
+odds are you're no different and you know it.  If it makes you feel better, the indentation detection algorithm is pretty flexible, and Perl
+code within curly braces is exempt from indentation significance.  (Not that this example has any multiline code, but you see what I mean.)
+
+Second, fields are declared here and their content is exposed as magic variables in the code snippets.  You will immediately see that code
+embedded in a declarative structure goes through a modification pass before being C<eval>'d into a sub.  So there is a possibility that I
+have screwed that modification pass up.  I don't have an answer for this right now; the point is quick and easy, not perfection (yet).
+Caveat emptor.  It's still a neat feature.
+
+There is a standard parser and standard data structure available for tags to use if it suits your purpose - but there's no mandate to use them,
+and the parser tools are open for use.  They're still a little raw, but pretty powerful.
 
 A declarative object can report its own source code, and that source code can compile into an equivalent declarative object.  This means that dynamically
 constructed objects or applications can be written out as executable code, and code has introspective capability while in the loaded state.  C<Class::Declarative>
 also has a macro system that allows the construction of code during the build phase; a macro always dumps as its source, not the result of the expansion, so
 you can capture dynamic behavior that runs dynamically every time.
 
-C<Class::Declarative> runs as a filter by default.  That means that you can do this, giving it one or more semantic classes:
-
-   use Class::Declarative qw(Wx::Declarative);   # Wx::Declarative is a set of semantic classes for wxPerl.
-   
-   frame (xsize=450, ysize=400, x=50, y=50) "Caret Wx::Declarative sample"
-      menubar:
-         menu "&File":
-            item blinktime "&Blink time...\tCtrl-B"
-            separator
-            item about     "&About...\tCtrl-A"
-            separator
-            item quit      "E&xit\tAlt-X"
-         
-      status (segments=2) "Welcome to Wx::Declarative!"
-   
-      on quit {
-         ^Close(1);
-      }
-   
-      on about:
-         message:
-            title "Caret Wx::Declarative Sample"
-            body  "About Caret"
-            icons "OK INFORMATION"
-         
-      on blinktime:
-         dialog (template=getnumber):
-            help   "The caret blink time is the time between two blinks"
-            prompt "Time in milliseconds"
-            title  "Caret sample"
-            get { Wx::Caret::GetBlinkTime }
-            min "0"
-            max "10000"
-            result "blinktime"
-            on OK {
-               if ($^blinktime != -1) {
-                  Wx::Caret::SetBlinkTime( $^blinktime );
-                  Wx::LogStatus( $self, 'Blink time set to %d milliseconds', $^blinktime );
-               }
-            }
-            
-This structure is almost obvious without any explanation at all.  That's kind of the point of declarative programming.  This particular example
-doesn't show much Perl code, but the basic rule of thumb is that anything in curly brackets {} is Perl.  C<Class::Declarative> gives you a little syntactic
-sugar to make things easy ("^word" expands to "$self->word", "$^word" expands to "$self->{word}", and "my $self = shift;" is appended to all functions).
-I don't know about you, but without that kind of help, I'd never get the structural references right, so I've done it once, right.
-
-In addition to being declarative, a C<Class::Declarative> program is event-based.  That means that things happen when events fire.  There are many other
-Perl-y event frameworks, such as POE and Wx itself.  C<Class::Declarative> organizes its object framework to work around Wx because that's the
-framework I know.  I don't see why it couldn't build a POE application just as well, and that would be an excellent exercise after I've done
-Wx.  Tell me if you're interested in this.
-
-At any rate, all code snippets can function as event handlers.  Events take place in the context of some node in the tree - and that node may not be
-the node where the code was defined.  For instance, under Wx, you might define a code handler in the button that triggers it, but when that code actually
-runs, "$self" won't point to the button, it'll point to the frame or dialog the button is placed on.
-
 =head1 TUTORIAL
 
-For more information about how to use C<Class::Declarative>, you'll probably want to see L<../Declarative/Tutorial.pod> instead of this file;
+For more information about how to use C<Class::Declarative>, you'll probably want to see L<Class::Declarative::Tutorial> instead of this file;
 the rest of this presentation is devoted to the internal workings of C<Class::Declarative>.  (Old literate programming habits, I guess.)
+Honestly, you can probably just stop here, because if you're not reading the source with the POD it probably won't make any sense anyway.
+Go read the tutorial.  Not that I've finished it.
 
 =head1 SETTING UP THE CLASS STRUCTURE
 
-=head2 import
+=head2 import, yes_i_am_declarative
 
 The C<import> function is called when the package is imported.  It's used for the filter support; don't call it.
 
@@ -131,9 +103,14 @@ our %build_handlers = ();
 our %build_flags = ();
 our @semantic_classes = ();
 
+sub yes_i_am_declarative { 1 }  # This is probably a childish way of doing this.
+our $initial_load;
 sub import
 {
    my($type, @arguments) = @_;
+
+   return if defined $initial_load; # We only do this stuff once.
+   $initial_load = 1;
    
    if (@arguments and $arguments[0] ne '-nofilter') {
       filter_add(bless { start => 1 });  # We won't do filtering if there's no semantics.  This allows us to test parsing easily.
@@ -143,8 +120,8 @@ sub import
    push @arguments, "Class::Declarative::Semantics" unless grep { $_ eq "Class::Declarative::Semantics" } @arguments;
 
    use lib "./lib"; # This allows us to test semantic modules without disturbing their production variants that are installed.
-   foreach (@arguments) {   
-      eval "use $_ qw(" . __PACKAGE__ . ");";
+   foreach (@arguments) {
+      eval "use $_;";
       if ($@) {
          warn $@;
       } else {
@@ -523,6 +500,7 @@ sub init_default_body_parser {
                } elsif (is_blank ($line)) {
                   # print STDERR "blank line at start of tag with longer indent\n";
                   $blanks .= $line; # Stash it and keep going.
+                  $indent = $lineindent; # 2010-07-24 - and don't let 'indent' get updated
                } else {   # This is the first line of the body, because it's indented further than the opening line.
                   $spaces = ' ' x $indent;
                   $line =~ s/^$spaces//;
@@ -567,7 +545,7 @@ sub init_default_body_parser {
                      $curtext .= $blanks;
                      $blanks = '';
                   }
-                  # print STDERR "body line\n";
+                  # print STDERR "body line >> $line\n";
                   $curtext .= $line . "\n";
                }
             }

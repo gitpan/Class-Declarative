@@ -5,7 +5,7 @@ use strict;
 use base qw(Exporter);
 use vars qw(@EXPORT);
 
-@EXPORT = qw(car cdr popcar splitcar lazyiter escapequote);
+@EXPORT = qw(car cdr popcar splitcar lazyiter escapequote hh_set hh_get);
 
 =head1 NAME
 
@@ -25,7 +25,7 @@ our $VERSION = '0.01';
 This class is a lightweight set of utilities to make things easier throughout C<Class::Declarative>.  I'm not yet sure what will end up here, but my
 rule of thumb is that it's extensions I'd like to be able to use in code generators as well.
 
-=head2 car(), cdr(), popcar(), splitcar()
+=head2 Lazy Lispy lists: car(), cdr(), popcar(), splitcar()
 
 I like Higher-Order Perl, really I do - but his head/tail streams are really just car and cdr, so I'm hereby defining car and cdr as lazy-evaluated streams
 throughout the language.  Nodes are arrayrefs.  Clean and simple, no object orientation required.
@@ -48,7 +48,8 @@ sub splitcar ($) { @{$_[0]}; }
 
 =head2 lazyiter($iterator)
 
-Takes any coderef (but especially an L<Iterator::Simple>) and builds a stream out of it.
+Takes any coderef (but especially an L<Iterator::Simple>) and builds a stream out of it.  Invokes the coderef once to get the
+first value in the stream.
 
 =cut
 
@@ -66,11 +67,78 @@ Returns a new string with C<$quote> escaped (by default, '"' is escaped) by mean
 =cut
 
 sub escapequote {
-   my ($string, $quote);
+   my ($string, $quote) = @_;
    $quote = '"' unless $quote;
    $string =~ s/($quote)/\\$1/g;
    $string
 }
+
+=head2 Hierarchical values a la CSS: hh_set(hash, name, value), hh_get (hash, name), and prepare_hierarchical_value as a helper
+
+You know how CSS lets you specify something like C<font-size: 8> as well as something more like C<font: {size: 8}>?  These functions give
+you something similar using hierarchically nested hashrefs.  They allow you to mix types of addressing:
+
+   hh_set($h, 'border-left', 'my value');
+   hh_set($h, 'border', 'right: val1; top: val2');
+   
+   # { 'border' => {'left'  => 'my value',
+   #                'right' => 'val1',
+   #                'top'   => 'val2'
+   #               }
+   # }
+   
+Clear?  Then you can use C<hh_get> to retrieve 'border' or 'border-left' by digging down into the hashref hierarchy.
+
+Separators for names can be anything in -./
+
+=cut
+
+sub prepare_hierarchical_value {
+   my ($hash, $name) = @_;
+   $hash->{$name} = {} unless defined $hash->{$name};
+   if (not ref $hash->{$name}) {
+      my $newhash = {'*' => $hash->{$name}};
+      $hash->{$name} = $newhash;
+   }
+   return $hash->{$name};
+}
+
+sub hh_set {
+   my ($hash, $name, $value) = @_;
+
+   unless (ref $name) {
+      my @s = split /[.\-\/]/, $name;
+      $name = \@s;
+   }
+   
+   my ($first, @rest) = @$name;
+   if (@rest) {
+      hh_set (prepare_hierarchical_value ($hash, $first), \@rest, $value);
+   } else {
+      if ($value =~ /:/) {
+         foreach (split / *; */, $value) {
+            hh_set (prepare_hierarchical_value ($hash, $first), split / *: */);
+         }
+      } elsif (ref $hash->{$first}) {
+         $hash->{$first}->{'*'} = $value;
+      } else {
+         $hash->{$first} = $value;
+      }
+   }
+}
+
+sub hh_get {
+   my ($hash, $name) = @_;
+   
+   unless (ref $name) {
+      my @s = split /[.\-\/]/, $name;
+      $name = \@s;
+   }
+   my ($first, @rest) = @$name;
+   return $hash->{$first} unless @rest;
+   hh_get ($hash->{$first}, \@rest);
+}
+
 
 =head1 AUTHOR
 

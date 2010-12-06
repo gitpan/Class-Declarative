@@ -4,6 +4,7 @@ use warnings;
 use strict;
 
 use base qw(Class::Declarative::Node);
+use Class::Declarative::Util;
 
 =head1 NAME
 
@@ -29,7 +30,7 @@ Called by Class::Declarative::Semantics during import, to find out what tags thi
 parsers used to build its content.
 
 =cut
-sub defines { ('on', 'do', 'perl'); }
+sub defines { ('on', 'do', 'perl', 'sub'); }
 our %build_handlers = ( perl => { node => sub { Class::Declarative::Semantics::Code->new (@_) }, body => 'none' } );
 
 =head2 build_payload, fixvars, fixcall, fixevent, make_code, make_select
@@ -105,10 +106,15 @@ sub make_code {
    my $code = shift;
    
    my $cx = $self->event_context;
-   
+   my $sem = $cx->semantics;
+   my $subs = $self->subs();
+
    my $preamble = '';
    if (@_) {
       $preamble = 'my ($' . join (', $', @_) . ') = @_;' . "\n\n";  # I love generating code.
+   }
+   foreach my $subname (keys %$subs) {
+      $preamble .= 'local *' . $subname . ' = $subs->{\'' . $subname . '\'}->{sub};' . "\n";
    }
    $code = $preamble . $code;
    $code =~ s/\$\^(\w+)/fixvars($1)/ge;
@@ -116,7 +122,7 @@ sub make_code {
    $code =~ s/\^foreach (.*) {/$self->make_select($1)/ge;
    $code =~ s/\^select (.*) {/$self->make_select($1)/ge;
    $code =~ s/\^(\w+)/fixcall($1)/ge;
-      
+   
    my $sub = eval "sub {" . $code . "\n}";
    $self->error ($@) if $@;
 

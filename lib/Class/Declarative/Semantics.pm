@@ -4,6 +4,8 @@ use warnings;
 use strict;
 
 use Data::Dumper;
+use File::Spec;
+#use Class::Declarative;  This use is actually done via eval down below, but preserved here for documentation.
 
 =head1 NAME
 
@@ -41,6 +43,19 @@ sub new {
 }
 sub tag { 'core' }
 
+=head2 node
+
+The C<node> function creates a new node by handing things off to L<Class::Declarative>.  It's not too useful in the core semantics, but of
+course it's inherited by the other semantic domains, where it can come in rather handy.
+
+=cut
+
+sub node {
+   my $self = shift;
+   require Class::Declarative;
+   Class::Declarative->new(@_);
+}
+
 =head2 import, scan_plugins
 
 The C<import> function is called when the package is imported.  It checks for submodules (i.e. plugins) and calls their "defines" methods
@@ -51,26 +66,28 @@ because C<import> I<has> to execute in any subclass module so we can scan the ri
 
 sub import
 {
-   my($type, $caller) = @_;
-   $type->scan_plugins ($caller, __FILE__);
+   my($type) = @_;
+   $type->scan_plugins (scalar caller(), __FILE__);
 }
    
 sub scan_plugins {
-   my ($type, $caller, $file) = @_;  
-
+   my ($type, $caller, $file) = @_; 
+   
+   $caller = "Class::Declarative" unless $caller;
+   eval "use Class::Declarative;";  # We do this to ensure C::D doesn't get called until it's really needed (instead of a regular use up top).
    my $directory = File::Spec->rel2abs($file);
    $directory =~ s/\.pm$//;
    opendir D, $directory or warn $!;
    foreach my $d (grep /\.pm$/, readdir D) {
       $d =~ s/\.pm$//;
-	  my $mod = $type . "::" . $d;
+      my $mod = $type . "::" . $d;
       $mod =~ /(.*)/;
       $mod = $1;
       my @list = ();
-	  eval " use $mod; \@list = $mod->defines; ";
-	  warn $@ if $@;
-	  unless ($@) {
-   	     foreach (@list) {
+      eval " use $mod; \@list = $mod->defines; ";
+      warn $@ if $@;
+      unless ($@) {
+         foreach (@list) {
             my $bh = eval '$' . $mod . '::build_handlers{$_}';
             if ($bh) {
                eval ' $caller->class_build_handler ($_, $bh); ';
@@ -79,7 +96,7 @@ sub scan_plugins {
                eval ' $caller->class_build_handler ($_, { node => sub { ' . $mod . '->new(@_); }}); ';  # Did you get that?
                warn "$caller for $mod: $@" if $@;
             }
-		 }
+	 }
       }
    }
 }
@@ -94,12 +111,14 @@ application in turn.
 
 sub start {
    my ($self) = @_;
+   my $return;
    
    foreach ($self->{root}->nodes) {
       next unless $_->{callable};
       next if $_->{event};
-      $_->go;
+      $return = $_->go;
    }
+   return $return;
 }
 
 =head2 do()

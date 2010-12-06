@@ -7,6 +7,7 @@ use Iterator::Simple qw(:all);
 use Class::Declarative::Semantics::Code;
 use Class::Declarative::Util;
 use Data::Dumper;
+use Carp;
 
 =head1 NAME
 
@@ -51,6 +52,7 @@ application, including how its contents are parsed.
 
 sub new {
    my $class = shift;
+   #print STDERR "Adding $class\n";
    my $self = bless {
       state       => 'unparsed', # Fresh.
       payload     => undef,      # Not built.
@@ -78,9 +80,16 @@ sub new {
    # Now prepare the body as needed.
    my ($line, $body);
    $body = shift;
+   #print STDERR "new: body is " . Dumper ($body);
    $body = '' unless defined $body;
    if (ref $body eq 'ARRAY') {
-      ($line, $body) = @$body;
+      #print STDERR "new: body is arrayref\n";
+      {
+         my @bodyrest;
+         ($line, @bodyrest) = @$body;
+         #print STDERR "new: first line is $line\n";
+         $body = \@bodyrest;
+      }
    } else {
       ($line, $body) = split /\n/, $body, 2;
    }
@@ -107,7 +116,7 @@ sub line     { $_[0]->{line} }
 sub hasbody  { defined $_[0]->{body} ? ($_[0]->{body} ? 1 : 0) : 0 }
 sub body     { $_[0]->{body} }
 sub elements { @{$_[0]->{elements}} }
-sub nodes    { grep { ref $_ } @{$_[0]->{elements}} }
+sub nodes    { grep { ref $_ && (defined $_[1] ? $_->is($_[1]) : 1) } @{$_[0]->{elements}} }
 sub payload  { $_[0]->{payload} }
 
 =head2 parent(), ancestry()
@@ -129,8 +138,8 @@ More accessor functions.
 
 =cut
 
-sub parameter   { $_[0]->{parameters}->{$_[1]} || '' }
-sub option      { $_[0]->{options}->{$_[1]} || '' }
+sub parameter   { $_[0]->{parameters}->{$_[1]} || $_[2] || '' }
+sub option      { $_[0]->{options}->{$_[1]} || $_[2] || '' }
 sub option_n    { ($_[0]->optionlist)[$_[1]-1] }
 sub parameter_n { ($_[0]->parmlist)[$_[1]-1] }
 sub parmlist    { @{$_[0]->{parmlist}} }
@@ -143,6 +152,74 @@ sub bracket     { $_[0]->{bracket} }
 sub comment     { $_[0]->{comment} }
 
 sub errors  { @{$_[0]->{errors}} }
+
+=head2 plist(@parameters)
+
+Given a list of parameters, returns a hash (not a hashref) of their values, first looking in the parameters, then looking for children
+of the same name and returning their labels if necessary.  This allows us to specify a parameter for a given object either like this:
+
+   object (parm1=value1, parm2 = value2)
+   
+or like this:
+
+   object
+      parm1 "value1"
+      parm2 "value2"
+      
+It just depends on what you find more readable at the time.  For this to work during payload build, though, the children have to be built
+first, which isn't the default - so you have to call $self->build_children before using this in the payload build.
+
+This is really useful if you're wrapping a module that uses a hash to initialize its object.  Like, say, L<LWP::UserAgent>.
+
+=cut
+
+sub plist {
+   my $self = shift;
+   my %p;
+   foreach my $p (@_) {
+      if ($self->parameter($p)) {
+         $p{$p} = $self->parameter($p);
+      } elsif (my $pnode = $self->find($p)) {
+         $p{$p} = $pnode->label;
+      }
+   }
+
+   %p;
+}
+
+=head2 parm_css (parameter), set_css_values (hashref, parameter_string), prepare_css_value (hashref, name), get_css_value (hashref, name)
+
+CSS is characterized by a sort of "parameter tree", where many parameters can be seen as nested in a hierarchy.  Take fonts, for example.
+A font has a size, a name, a bolded flag, and so on.  To specify a font, then, we end up with things like font-name, font-size, font-bold, etc.
+In CSS, we can also group those things together and get something like font="name: Times; size: 20", and that is equivalent to
+font-name="Times", font-size="20".  See?
+
+This function does the same thing with the parameters of a node.  If you give it a name "font" it will find /font-*/ as well, and munge
+the values into the "font" value.  It returns a hashref containing the entire hierarchy of these things, and it will also interpret any
+string-type parameters in the higher levels, e.g. font="size: 20; name: Times" will go into {size=>20, name=>'Times'}.  Honestly, I love
+this way of handling parameters in CSS.
+
+If you give a name "font-size" it will also find any font="size: 20" specification and retrieve the appropriate value.
+
+It I<won't> decompose multiple hierarchical levels starting from a string (e.g. something like font="size: {type: 3}" will not be parsed for
+font-size-type, because you'd need curly brackets or something anyway, and this ain't JSON, it's just simple CSS-like parameter addressing.
+
+=cut
+
+sub parm_css {
+   my ($self, $parameter) = @_;
+   my $return = {};
+   my $top = $parameter;
+   $top =~ s/[.\-\/].*$//;
+   hh_set ($return, $top, $self->parameter ($top)) if $self->parameter($top);
+   foreach ($self->parmlist()) {
+      if ($_ =~ /^$top[.\-\/]/) {
+         hh_set ($return, $_, $self->parameter ($_));
+      }
+   }
+   return hh_get ($return, $parameter);
+}
+
 
 =head2 flags({flag=>numeric value, ...}), oflags({flag=>numeric value, ...})
 
@@ -173,6 +250,19 @@ sub oflags {
    return $r;
 }
 
+=head2 list_parameter ($name)
+
+Sometimes, instead of having e.g. position-x and position-y parameters, it's easier to have something like p=40 20 or dim=20x20.  We can use
+the C<list_parameter> function to obtain a list of any numbers separated by non-number characters. (Note that due to the line parser using
+commas to separate the parameters themselves, the separator can't be a comma.  Unless you want to write a different line parser, in which
+case, go you!)
+
+So the separator characters can be: !@#$%^&*|:;~x and space.
+
+=cut
+
+sub list_parameter { split /[!@\#\$%\^\&\*\|:;~xX ]/, parameter(@_); }
+
 =head1 BUILDING STRUCTURE
 
 =head2 load ($string)
@@ -187,20 +277,43 @@ The return value is the list of objects added to the target, if any.
 sub load {
    my ($self, $string) = @_;
    
-   # Taken from the Perl recipes:
-   my ($white, $leader);  # common whitespace and common leading string
-   if ($string =~ /^\s*(?:([^\w\s]+)(\s*).*\n)(?:\s*\1\2?.*\n)+$/) {
-       ($white, $leader) = ($2, quotemeta($1));
-   } else {
-       ($white, $leader) = ($string =~ /^(\s+)/, '');
-   }
-   $leader = '' unless $leader;
-   $white = '' unless $white;
-   $white =~ s/^\n*//;
-   $string =~ s/^\s*?$leader(?:$white)?//gm if $leader or $white;
+   my @added;
    
-   my $root = $self->root();
-   my @added = $root->parse ($self, $string);
+   if (ref $string) {
+      #print STDERR "load: Adding from arrayref!\n" . Dumper($string);
+      my $root = $self->root;
+      $string = [$string] unless ref $$string[0];
+      foreach my $addition (@$string) {
+         #print STDERR "addition is $addition\n";
+         #print STDERR "line is " . ref($addition) ? $$addition[0] : $addition;
+         my $tag = ref($addition) ? $$addition[0] : $addition;
+         $tag =~ s/ .*//;
+         #print STDERR ", tag is $tag\n";
+         
+         # Make and add the tag by hand (for a text body, this is done by the parser in the 'else' block below).
+         my $newtag = $root->makenode([@{$self->ancestry}, $tag], $addition);
+         $newtag->{parent} = $self;
+         $self->{elements} = [$self->elements, $newtag];
+         
+         push @added, $newtag;
+      }
+   } else {
+      # Taken from the Perl recipes:
+      my ($white, $leader);  # common whitespace and common leading string
+      if ($string =~ /^\s*(?:([^\w\s]+)(\s*).*\n)(?:\s*\1\2?.*\n)+$/) {
+          ($white, $leader) = ($2, quotemeta($1));
+      } else {
+          ($white, $leader) = ($string =~ /^(\s+)/, '');
+      }
+      $leader = '' unless $leader;
+      $white = '' unless $white;
+      $white =~ s/^\n*//;
+      $string =~ s/^\s*?$leader(?:$white)?//gm if $leader or $white;
+   
+      my $root = $self->root();
+      @added = $root->parse ($self, $string);
+   }
+   
    foreach (@added) {
       $_->build if $_->can('build');
    }
@@ -269,11 +382,21 @@ sub parse_body {
    my $self = shift;
    if ($self->tag =~ /^!/) {
       $self->{tag} =~ s/^!//;
-      print "!'d tag " . $self->{tag} . " found; not parsing body\n";
+      #print "!'d tag " . $self->{tag} . " found; not parsing body\n";
    } else {
       my $root = $self->root;
-      my @results = $root->parse ($self, $self->body) if $self->body and not $self->{bracket};
-      $self->{body} = '' if @results;
+      if (ref $self->body eq 'ARRAY') {
+         # If we have an arrayref input, we don't need to parse it!  (2010-12-05)
+         #print "parse_body: body is an arrayref\n";
+         my $list = $self->{body};
+         $self->{body} = '';
+         foreach (@$list) {
+            $self->load ($_);
+         }
+      } else {
+         my @results = $root->parse ($self, $self->body) if $self->body and not $self->{bracket};
+         $self->{body} = '' if @results;
+      }
    }
 }
 
@@ -477,20 +600,23 @@ sub sketch_c {
 =head2 go($item)
 
 For callable nodes, this is one way to call them.  The default is to call the go methods of all the children of the node, in sequence.
+The last result is returned as our result (this means that the overall tree may have a return value if you set things up right).
 
 =cut
 
 sub go {
    my $self = shift;
+   my $return;
 
    return unless $self->{callable};
    if ($self->{owncode} && $self->{sub}) {
-      &{$self->{sub}}(@_);
+      $return = &{$self->{sub}}(@_);
    } else {
-      foreach ($self->elements) {
-         $_->go (@_);
+      foreach ($self->nodes) {
+         $return = $_->go (@_);
       }
    }
+   return $return;
 }
 
 =head2 closure(...)
@@ -622,7 +748,7 @@ sub error {
    my ($self, $error) = @_;
    $self->{errors} = [] unless $self->{errors};
    push @{$self->{errors}}, $error;
-   print STDERR "$error\n";  # TODO: bad long-term...
+   #print STDERR "$error\n";  # TODO: bad long-term...
 }
 
 =head2 find_data
@@ -671,6 +797,22 @@ sub get_pair {
    return $default;
 }
 
+=head2 subs()
+
+Returns all our direct children named 'sub', plus the same thing from our parent.  Our answers mask our parent's.
+
+=cut
+
+sub subs {
+   my $self = shift;
+   my $subs = $self->parent ? $self->parent()->subs() : {};
+   foreach ($self->nodes()) {
+      next unless $_->tag() eq 'sub';
+      $_->build();
+      $subs->{$_->name} = $_;
+   }
+   return $subs;
+}
 
 =head1 AUTHOR
 
