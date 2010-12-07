@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Class-Declarative
-version:            0.07
+version:            0.08
 abstract:           Provides a declarative framework for Perl
 author:
     - Michael Roberts <michael@vivtek.com>

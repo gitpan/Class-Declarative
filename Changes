@@ -24,3 +24,7 @@ Revision history for Class-Declarative
         Changes to permit direct 'use' of semantic modules (e.g. 'use Wx::Declarative;' instead of 'use Class::Declarative qw(Wx::Declarative)')
         Added the ability to load a node using an arrayref of its components (first line, then children) instead of having to pass a text.
         Probably other stuff, but those two are the main reasons this version is being published.
+
+0.08	2010-12-06
+	Removed dependency on Tie::ExtraHash (it's perl >= 5.10, oops)
+	Thanks, CPAN Daily Testers!

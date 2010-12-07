@@ -1,9 +1,26 @@
 package hashtie;
 use warnings;
 use strict;
-require Tie::Hash;
-our @ISA = qw(Tie::ExtraHash);
+#require Tie::Hash;
+#our @ISA = qw(Tie::ExtraHash);  - Apparently only standard in perl >= 5.10.  I'm copying it here to remove that dependency, because
+#                                  let's face it, it's eleven lines of code.
+#                                  Nota bene: CPAN Testers freaking rock!
 
+sub new {
+    my $pkg = shift;
+    $pkg->TIEHASH(@_);
+}
+sub TIEHASH  { my $p = shift; bless [{}, @_], $p }
+#sub STORE    { $_[0][0]{$_[1]} = $_[2] }
+#sub FETCH    { $_[0][0]{$_[1]} }
+sub FIRSTKEY { my $a = scalar keys %{$_[0][0]}; each %{$_[0][0]} }
+sub NEXTKEY  { each %{$_[0][0]} }
+sub EXISTS   { exists $_[0][0]->{$_[1]} }
+sub DELETE   { delete $_[0][0]->{$_[1]} }
+sub CLEAR    { %{$_[0][0]} = () }
+sub SCALAR   { scalar %{$_[0][0]} }
+
+# My versions of STORE and FETCH.
 sub STORE {
    my ($this, $key, $value) = @_;
    if ($this->[1]{$key}) { return &{$this->[1]{$key}}($this->[0], $key, $value); }
